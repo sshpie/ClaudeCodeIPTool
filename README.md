@@ -1,10 +1,6 @@
 # ClaudeCodeIPTool v6.0
 
-Complete IP spoofing, MITM, session replay, proxy routing, and detection evasion suite for VDT (Vulnerability Discovery Testing). **16 functional tools** covering reconnaissance, Layer 2/3/DHCP/IPv6/ICS MITM, WebSocket hijacking, service discovery poisoning, Chrome TLS impersonation, SOCKS5 routing, credential capture, defense detection, and IDS/IPS evasion.
-
-**New in v6.0:** Detection evasion module — Ptacek-Newsham insertion/evasion, overlapping IP fragments, TTL ghost packets, TCP SYN+payload bypass, lone ACK, bad-checksum decoy, ICMP covert channel (Loki-style), DNS case variation + compression pointers, ARP jitter, rate-limiting profiles. Importable by all other tools via `EvasionConfig`.
-
-**New in v5.0:** IPv6 NDP/RA spoofing, mDNS/WS-Discovery/SSDP poisoning, ICS/OT protocol probe (Modbus/DNP3/EtherNet-IP/BACnet/OPC-UA), WebSocket CSWSH + frame injection.
+Packet-level network attack primitives for controlled-environment security research. 16 tools covering Layer 2/3/IPv6/ICS MITM, service discovery poisoning, WebSocket hijacking, IDS/IPS evasion, and credential capture.
 
 ---
 
@@ -520,16 +516,16 @@ detector.analyze(src_ip='8.8.8.8', observed_ttl=13)
 - Violent Python Ch4 - TTL-based detection (H.D. Moore technique)
 - Attacking Network Protocols Ch7/Ch10 - Protocol weaknesses, exploitation
 
-**Advanced Topics (synthesis pending):**
-- IPv6 Security - NDP poisoning, Router Advertisement spoofing
+**Advanced Topics:**
+- IPv6 Security - NDP poisoning, Router Advertisement spoofing → ndp-spoof.py
 - Learning eBPF - XDP/TC-BPF kernel-level packet manipulation
-- Practical IoT Hacking - mDNS/LLMNR/NBT-NS/CoAP/MQTT
+- Practical IoT Hacking - mDNS/LLMNR/NBT-NS/CoAP/MQTT → mdns-poison.py
 - Network Programmability - Netlink, NFQUEUE, namespace exploitation
-- Industrial Network Security (3 editions) - ICS/OT Modbus/DNP3/EtherNet-IP
+- Industrial Network Security (3 editions) - ICS/OT Modbus/DNP3/EtherNet-IP → ics-probe.py
 - Kubernetes Security - Container network namespace escapes
-- WebSocket / Programming WebRTC - Real-time bidirectional hijacking
+- WebSocket / Programming WebRTC - Real-time bidirectional hijacking → ws-hijack.py
 - Network Security Bible / Networking Bible - Protocol internals
-- Network Intrusion Detection - IDS evasion techniques
+- Network Intrusion Detection - IDS evasion techniques → evasion.py
 
 ---
 
