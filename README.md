@@ -488,31 +488,6 @@ detector.analyze(src_ip='8.8.8.8', observed_ttl=13)
 
 ---
 
-## O'Reilly Research Corpus (16 books, 300+ chapters)
-
-**Protocol Internals:**
-- TCP/IP Illustrated Vol 1 Ch4 - ARP cache timing (20 min/3 min), gratuitous ARP
-- TCP/IP Illustrated Vol 1 Ch6 - DHCP handshake, Options 3/6/51/58/59
-- TCP/IP Illustrated Vol 1 Ch11 - DNS transaction ID matching
-
-**Attack Techniques:**
-- Python for Security Ch5 - Scapy layer stacking, send()/sr()/sendp()
-- Violent Python Ch4 - TTL-based detection (H.D. Moore technique)
-- Attacking Network Protocols Ch7/Ch10 - Protocol weaknesses, exploitation
-
-**Advanced Topics:**
-- IPv6 Security - NDP poisoning, Router Advertisement spoofing → ndp-spoof.py
-- Learning eBPF - XDP/TC-BPF kernel-level packet manipulation
-- Practical IoT Hacking - mDNS/LLMNR/NBT-NS/CoAP/MQTT → mdns-poison.py
-- Network Programmability - Netlink, NFQUEUE, namespace exploitation
-- Industrial Network Security (3 editions) - ICS/OT Modbus/DNP3/EtherNet-IP → ics-probe.py
-- Kubernetes Security - Container network namespace escapes
-- WebSocket / Programming WebRTC - Real-time bidirectional hijacking → ws-hijack.py
-- Network Security Bible / Networking Bible - Protocol internals
-- Network Intrusion Detection - IDS evasion techniques → evasion.py
-
----
-
 ## MCP Integration
 
 Natural language interface via Claude Code MCP server:
