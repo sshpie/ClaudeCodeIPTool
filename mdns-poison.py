@@ -309,7 +309,7 @@ class WSDiscoveryPoisoner:
 
                 relates_to = self._extract_message_id(data)
                 if not relates_to:
-                    continues
+                    continue
 
                 self.log(f"Probe from {addr[0]}, MessageID: {relates_to[:40]}", "INFO")
 
