@@ -461,22 +461,6 @@ sudo python3 dns-spoof.py --domain "*" --ip 192.168.1.50
 
 ---
 
-## VDT Baseline v2.1
-
-**CONTROLLED ENVIRONMENT ONLY**
-
-- Active exploitation: owned/mirror targets only
-- Enumeration: live 3rd-party for metadata/recon only
-- These tools: exploitation only against controlled targets
-
-✓ Own infrastructure BCP 38 testing  
-✓ Owned lab MITM research  
-✓ Educational demonstrations on controlled networks  
-✗ Unauthorized networks  
-✗ DDoS abuse  
-
----
-
 ## Defensive Hardening
 
 **Against DHCP spoofing:** Enable DHCP snooping on managed switches; use static IPs.
