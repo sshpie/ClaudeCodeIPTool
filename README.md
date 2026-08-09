@@ -1,4 +1,4 @@
-# ClaudeCodeIPTool - VDT
+# ClaudeCodeIPTool
 
 Three functional tools demonstrating IP spoofing attack primitives and defenses.
 
