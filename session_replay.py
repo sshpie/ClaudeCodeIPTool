@@ -97,12 +97,14 @@ def make_session(proxy: str | None = None, impersonate: str = "chrome120") -> cf
 def cmd_probe(args):
     by_domain = load_cookies_by_domain(args.cookies)
     cookies = cookies_for_url(by_domain, args.url)
+    impersonate = getattr(args, "impersonate", None) or args.__dict__.get("impersonate") or "chrome120"
+    proxy = getattr(args, "proxy", None)
     print(f"[*] {len(cookies)} cookies for {args.url}")
-    print(f"[*] Impersonating: {args.impersonate}")
-    if args.proxy:
-        print(f"[*] Proxy: {args.proxy}")
+    print(f"[*] Impersonating: {impersonate}")
+    if proxy:
+        print(f"[*] Proxy: {proxy}")
 
-    s = make_session(proxy=args.proxy, impersonate=args.impersonate)
+    s = make_session(proxy=proxy, impersonate=impersonate)
     resp = s.get(
         args.url,
         cookies=cookies,
@@ -212,23 +214,33 @@ def main():
                         help="Proxy URL (e.g. socks5://localhost:1080 or http://user:pass@host:port)")
     sub = parser.add_subparsers(dest="cmd")
 
+    def _add_common(sub_parser):
+        sub_parser.add_argument("--impersonate", default=None,
+                                help="TLS fingerprint override for this subcommand")
+        sub_parser.add_argument("--proxy", default=None,
+                                help="Proxy URL override for this subcommand")
+
     p = sub.add_parser("probe", help="Probe a single URL with session cookies")
     p.add_argument("--cookies", required=True, help="Netscape cookie file")
     p.add_argument("--url", required=True, help="Target URL")
     p.add_argument("--output", help="Save response body to file")
+    _add_common(p)
 
     e = sub.add_parser("enumerate", help="Enumerate multiple targets")
     e.add_argument("--cookies", required=True, help="Netscape cookie file")
     e.add_argument("--domains", required=True, help="File with one URL/domain per line")
     e.add_argument("--output", help="JSON results output file")
+    _add_common(e)
 
     x = sub.add_parser("export", help="Export cookies for a domain")
     x.add_argument("--cookies", required=True, help="Netscape cookie file")
     x.add_argument("--domain", required=True, help="Domain to filter (e.g. .google.com)")
+    _add_common(x)
 
     t = sub.add_parser("test-tls", help="Check our TLS fingerprint")
     t.add_argument("--url", default="https://tls.browserleaks.com/tls",
                    help="TLS inspection endpoint")
+    _add_common(t)
 
     args = parser.parse_args()
     if not args.cmd:
