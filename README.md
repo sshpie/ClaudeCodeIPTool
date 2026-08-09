@@ -1,6 +1,6 @@
 # ClaudeIP-max
 
-Packet-level network attack primitives for controlled-environment security research. 16 tools covering Layer 2/3/IPv6/ICS MITM, service discovery poisoning, WebSocket hijacking, IDS/IPS evasion, and credential capture.
+Packet-level network attack primitives for controlled-environment security research. 17 tools covering Layer 2/3/IPv6/ICS MITM, service discovery poisoning, WebSocket hijacking, IDS/IPS evasion, credential capture, and Chrome TLS session replay.
 
 ## Setup
 
