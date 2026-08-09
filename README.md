@@ -254,3 +254,49 @@ tools = [
 ```
 
 **Status**: Pending implementation
+
+---
+
+## NEW: ARP Spoofing Module (Bidirectional Capability)
+
+### 4. `arp-spoof.py` - ARP Cache Poisoning for Bidirectional Spoofing
+
+**WORKING TOOL** for bidirectional IP spoofing via ARP cache poisoning.
+
+**Use Case:**
+- Make target think you ARE 75.142.10.8 (not just packets FROM it)
+- Target sends responses to YOUR MAC address
+- Bidirectional communication achieved
+
+**How It Works:**
+```
+Normal ARP:
+Target asks: "Who has 75.142.10.8?"
+Real 75.142.10.8: "I do! My MAC is AA:BB:CC:DD:EE:FF"
+
+ARP Spoofing:
+You send: "75.142.10.8 is at YOUR_MAC_ADDRESS" (lie)
+Target updates cache: 75.142.10.8 → YOUR_MAC
+Target sends packets for 75.142.10.8 to YOU
+```
+
+**Requirements:**
+- Same Layer 2 network as target (LAN, not Internet)
+- Root/sudo for raw sockets
+- IP forwarding enabled (auto-enabled by tool)
+
+**Usage:**
+```bash
+# Basic ARP spoofing
+sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 75.142.10.8
+
+# With traffic interception (see packets)
+sudo python3 arp-spoof.py spoof 192.168.1.100 --spoof-ip 75.142.10.8 --intercept
+
+# Restore ARP cache when done
+sudo python3 arp-spoof.py restore 192.168.1.100 --spoof-ip 75.142.10.8
+```
+
+**Status**: ✓ Functional (requires same network as target)
+
+**Critical Limitation:** Only works if target is on SAME LAN (Layer 2). Cannot work across Internet.
